@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>Traumraum</title>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <link rel="stylesheet" href="style.css" type="text/css" media="all" />
+
+      <script
+         src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+         crossorigin="anonymous"
+      ></script>
+      <script
+         src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+         crossorigin="anonymous"
+      ></script>
+      <script
+         src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+         crossorigin="anonymous"
+      ></script>
+      <script
+         src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
+         crossorigin="anonymous"
+      ></script>
+   </head>
+   <body>
+      <div class="container">
+         <video style="display: none" class="input_video"></video>
+         <canvas class="output_canvas" width="1280px" height="720px"
+            >Loading...</canvas
+         >
+      </div>
+
+      <script src="js/script.js"></script>
+   </body>
+</html>
