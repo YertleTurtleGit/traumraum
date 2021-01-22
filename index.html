@@ -6,29 +6,16 @@
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <link rel="stylesheet" href="style.css" type="text/css" media="all" />
 
-      <script
-         src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
-         crossorigin="anonymous"
-      ></script>
-      <script
-         src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
-         crossorigin="anonymous"
-      ></script>
-      <script
-         src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
-         crossorigin="anonymous"
-      ></script>
-      <script
-         src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
-         crossorigin="anonymous"
-      ></script>
+      <script src="./res/camera_utils.js"></script>
+      <script src="./res/control_utils.js"></script>
+      <script src="./res/drawing_utils.js"></script>
+      <script src="./res/hands.js"></script>
    </head>
    <body>
       <div class="container">
-         <video style="display: none" class="input_video"></video>
-         <canvas class="output_canvas" width="1280px" height="720px"
-            >Loading...</canvas
-         >
+         <video id="input_video_a" class="input_video"></video>
+         <video id="input_video_b" class="input_video"></video>
+         <canvas id="output_canvas" width="1280px" height="720px"></canvas>
       </div>
 
       <script src="js/script.js"></script>
