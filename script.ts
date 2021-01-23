@@ -2,6 +2,7 @@
 
 const WIDTH = 1280;
 const HEIGHT = 720;
+const STATUS_ELEMENT: HTMLElement = document.getElementById("status");
 
 const videoElementA = <HTMLVideoElement>(
    document.getElementById("input_video_a")
@@ -11,6 +12,16 @@ const videoElementB = <HTMLVideoElement>(
 );
 const canvasElement = document.getElementById("output_canvas");
 const canvasCtx = canvasElement.getContext("2d");
+
+function updateStatus(status: string, hidden: boolean = false): void {
+   console.log(status);
+   if (hidden) {
+      STATUS_ELEMENT.style.display = "none";
+   } else {
+      STATUS_ELEMENT.innerHTML = status;
+      STATUS_ELEMENT.style.display = "block";
+   }
+}
 
 function onResults(results) {
    if (results.multiHandLandmarks) {
@@ -23,13 +34,18 @@ function onResults(results) {
             color: "#FF0000",
             lineWidth: 2,
          });*/
-         canvasCtx.fillRect(
+         canvasCtx.beginPath();
+         canvasCtx.arc(
             canvasElement.clientWidth -
                landmarks[8].x * canvasElement.clientWidth,
             landmarks[8].y * canvasElement.clientHeight,
             5,
-            5
+            0,
+            2 * Math.PI,
+            false
          );
+         canvasCtx.fillStyle = "white";
+         canvasCtx.fill();
       }
    }
 }
@@ -38,6 +54,7 @@ class HandsCamera {
    private videoElement: HTMLVideoElement;
    private cameraNumber: number;
    private cameraId: string;
+   private cameraLabel: string;
 
    private hands;
 
@@ -58,12 +75,30 @@ class HandsCamera {
                   cameraDevices.push(device);
                }
             }
+            if (cameraDevices.length - 1 < cThis.cameraNumber) {
+               updateStatus(
+                  "Could not find camera " +
+                     cThis.getCameraName() +
+                     ". Only " +
+                     cameraDevices.length +
+                     " camera(s) were found."
+               );
+            }
             cThis.cameraId = cameraDevices[cThis.cameraNumber].deviceId;
+            cThis.cameraLabel = cameraDevices[cThis.cameraNumber].label;
             return cThis.cameraId;
          });
       } else {
          return this.cameraId;
       }
+   }
+
+   getCameraName(): string {
+      this.getCameraId();
+      if (this.cameraLabel === undefined || this.cameraLabel === "") {
+         return "cam" + this.cameraNumber;
+      }
+      return this.cameraLabel;
    }
 
    initialize(): void {
@@ -79,6 +114,8 @@ class HandsCamera {
       });
       this.hands.onResults(onResults);
 
+      this.videoElement.autoplay = true;
+
       var cThis = this;
 
       navigator.mediaDevices
@@ -88,32 +125,57 @@ class HandsCamera {
                height: HEIGHT,
                deviceId: { exact: cThis.getCameraId() },
             },
-            audio: false,
          })
-         .then(function () {
-            cThis.onFrame();
+         .then(function (stream) {
+            updateStatus(
+               "Loading hand observer of camera " +
+                  cThis.getCameraName() +
+                  " and video element " +
+                  cThis.videoElement.id +
+                  "..."
+            );
+            cThis.videoElement.srcObject = stream;
+            cThis.startHandObserving();
          })
          .catch(function (error) {
             console.error("Failed to acquire camera feed: " + error);
             alert("Failed to acquire camera feed: " + error);
             throw error;
          });
+
+      this.getCameraId();
+      updateStatus(
+         "Please allow access for camera " + this.getCameraName() + "."
+      );
+   }
+
+   async startHandObserving() {
+      await this.hands.send({ image: this.videoElement });
+      updateStatus(
+         "Loaded hand observer of camera " +
+            this.getCameraName() +
+            " and video element " +
+            this.videoElement.id +
+            ".",
+         true
+      );
+      this.onFrame();
    }
 
    async onFrame() {
       await this.hands.send({ image: this.videoElement });
-      console.log("ON FRAME!");
       window.requestAnimationFrame(this.onFrame.bind(this));
    }
 }
 
 const cameraA: HandsCamera = new HandsCamera(0, videoElementA);
+//const cameraB: HandsCamera = new HandsCamera(1, videoElementB);
 
 /*const cameraA = new Camera(videoElementA, {
    onFrame: async () => {
       await hands.send({ image: videoElementA });
    },
-   width: 1280,
-   height: 720,
+   width: WIDTH,
+   height: HEIGHT,
 });
 cameraA.start();*/
