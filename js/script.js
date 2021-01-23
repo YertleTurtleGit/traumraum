@@ -18,6 +18,7 @@ function updateStatus(status, hidden = false) {
 }
 var lastPoints = [];
 var lastLinePoint;
+var handTracked = false;
 function onResults(results) {
     if (results.multiHandLandmarks) {
         for (const landmarks of results.multiHandLandmarks) {
@@ -59,6 +60,10 @@ function onResults(results) {
                     canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
                     canvasCtx.strokeStyle = "white";
                     canvasCtx.stroke();
+                }
+                if (!handTracked) {
+                    handTracked = true;
+                    updateStatus("Hand tracked.", true);
                 }
                 lastLinePoint = averagePoint;
                 lastPoints.shift();
@@ -152,7 +157,8 @@ class HandsCamera {
             this.getCameraName() +
             " and video element " +
             this.videoElement.id +
-            ".", true);
+            ".");
+        updateStatus("Please place your hand in front of your camera and move it to draw.");
         this.onFrame();
     }
     async onFrame() {

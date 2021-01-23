@@ -26,6 +26,8 @@ function updateStatus(status: string, hidden: boolean = false): void {
 var lastPoints: [number, number][] = [];
 var lastLinePoint: [number, number];
 
+var handTracked: boolean = false;
+
 function onResults(results) {
    if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
@@ -71,6 +73,10 @@ function onResults(results) {
                canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
                canvasCtx.strokeStyle = "white";
                canvasCtx.stroke();
+            }
+            if (!handTracked) {
+               handTracked = true;
+               updateStatus("Hand tracked.", true);
             }
             lastLinePoint = averagePoint;
             lastPoints.shift();
@@ -186,8 +192,10 @@ class HandsCamera {
             this.getCameraName() +
             " and video element " +
             this.videoElement.id +
-            ".",
-         true
+            "."
+      );
+      updateStatus(
+         "Please place your hand in front of your camera and move it to draw."
       );
       this.onFrame();
    }
