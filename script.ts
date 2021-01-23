@@ -23,6 +23,9 @@ function updateStatus(status: string, hidden: boolean = false): void {
    }
 }
 
+var lastPoints: [number, number][] = [];
+var lastLinePoint: [number, number];
+
 function onResults(results) {
    if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
@@ -34,7 +37,8 @@ function onResults(results) {
             color: "#FF0000",
             lineWidth: 2,
          });*/
-         canvasCtx.beginPath();
+
+         /*canvasCtx.beginPath();
          canvasCtx.arc(
             canvasElement.clientWidth -
                landmarks[8].x * canvasElement.clientWidth,
@@ -45,7 +49,33 @@ function onResults(results) {
             false
          );
          canvasCtx.fillStyle = "white";
-         canvasCtx.fill();
+         canvasCtx.fill();*/
+
+         var x: number =
+            canvasElement.clientWidth -
+            landmarks[8].x * canvasElement.clientWidth;
+         var y: number = landmarks[8].y * canvasElement.clientHeight;
+         if (lastPoints.length === 5) {
+            var averagePoint: [number, number] = [0, 0];
+            for (var i = 0; i < lastPoints.length; i++) {
+               averagePoint[0] += lastPoints[i][0];
+               averagePoint[1] += lastPoints[i][1];
+            }
+            averagePoint[0] /= lastPoints.length;
+            averagePoint[1] /= lastPoints.length;
+
+            if (lastLinePoint !== undefined) {
+               canvasCtx.beginPath();
+               canvasCtx.lineCap = "round";
+               canvasCtx.moveTo(lastLinePoint[0], lastLinePoint[1]);
+               canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
+               canvasCtx.strokeStyle = "white";
+               canvasCtx.stroke();
+            }
+            lastLinePoint = averagePoint;
+            lastPoints.shift();
+         }
+         lastPoints.push([x, y]);
       }
    }
 }

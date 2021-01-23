@@ -16,6 +16,8 @@ function updateStatus(status, hidden = false) {
         STATUS_ELEMENT.style.display = "block";
     }
 }
+var lastPoints = [];
+var lastLinePoint;
 function onResults(results) {
     if (results.multiHandLandmarks) {
         for (const landmarks of results.multiHandLandmarks) {
@@ -27,11 +29,41 @@ function onResults(results) {
                color: "#FF0000",
                lineWidth: 2,
             });*/
-            canvasCtx.beginPath();
-            canvasCtx.arc(canvasElement.clientWidth -
-                landmarks[8].x * canvasElement.clientWidth, landmarks[8].y * canvasElement.clientHeight, 5, 0, 2 * Math.PI, false);
+            /*canvasCtx.beginPath();
+            canvasCtx.arc(
+               canvasElement.clientWidth -
+                  landmarks[8].x * canvasElement.clientWidth,
+               landmarks[8].y * canvasElement.clientHeight,
+               5,
+               0,
+               2 * Math.PI,
+               false
+            );
             canvasCtx.fillStyle = "white";
-            canvasCtx.fill();
+            canvasCtx.fill();*/
+            var x = canvasElement.clientWidth -
+                landmarks[8].x * canvasElement.clientWidth;
+            var y = landmarks[8].y * canvasElement.clientHeight;
+            if (lastPoints.length === 5) {
+                var averagePoint = [0, 0];
+                for (var i = 0; i < lastPoints.length; i++) {
+                    averagePoint[0] += lastPoints[i][0];
+                    averagePoint[1] += lastPoints[i][1];
+                }
+                averagePoint[0] /= lastPoints.length;
+                averagePoint[1] /= lastPoints.length;
+                if (lastLinePoint !== undefined) {
+                    canvasCtx.beginPath();
+                    canvasCtx.lineCap = "round";
+                    canvasCtx.moveTo(lastLinePoint[0], lastLinePoint[1]);
+                    canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
+                    canvasCtx.strokeStyle = "white";
+                    canvasCtx.stroke();
+                }
+                lastLinePoint = averagePoint;
+                lastPoints.shift();
+            }
+            lastPoints.push([x, y]);
         }
     }
 }
