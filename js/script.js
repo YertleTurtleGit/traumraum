@@ -4,7 +4,7 @@ const HEIGHT = 720;
 const STATUS_ELEMENT = document.getElementById("status");
 const videoElementA = (document.getElementById("input_video_a"));
 const videoElementB = (document.getElementById("input_video_b"));
-const canvasElement = document.getElementById("output_canvas");
+const canvasElement = (document.getElementById("output_canvas"));
 const canvasCtx = canvasElement.getContext("2d");
 function updateStatus(status, hidden = false) {
     console.log(status);
@@ -18,64 +18,13 @@ function updateStatus(status, hidden = false) {
 }
 var lastPoints = [];
 var lastLinePoint;
-var handTracked = false;
-function onResults(results) {
-    if (results.multiHandLandmarks) {
-        for (const landmarks of results.multiHandLandmarks) {
-            /*drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-               color: "#00FF00",
-               lineWidth: 5,
-            });*/
-            /*drawLandmarks(canvasCtx, [landmarks[8]], {
-               color: "#FF0000",
-               lineWidth: 2,
-            });*/
-            /*canvasCtx.beginPath();
-            canvasCtx.arc(
-               canvasElement.clientWidth -
-                  landmarks[8].x * canvasElement.clientWidth,
-               landmarks[8].y * canvasElement.clientHeight,
-               5,
-               0,
-               2 * Math.PI,
-               false
-            );
-            canvasCtx.fillStyle = "white";
-            canvasCtx.fill();*/
-            var x = canvasElement.clientWidth -
-                landmarks[8].x * canvasElement.clientWidth;
-            var y = landmarks[8].y * canvasElement.clientHeight;
-            if (lastPoints.length === 5) {
-                var averagePoint = [0, 0];
-                for (var i = 0; i < lastPoints.length; i++) {
-                    averagePoint[0] += lastPoints[i][0];
-                    averagePoint[1] += lastPoints[i][1];
-                }
-                averagePoint[0] /= lastPoints.length;
-                averagePoint[1] /= lastPoints.length;
-                if (lastLinePoint !== undefined) {
-                    canvasCtx.beginPath();
-                    canvasCtx.lineCap = "round";
-                    canvasCtx.moveTo(lastLinePoint[0], lastLinePoint[1]);
-                    canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
-                    canvasCtx.strokeStyle = "white";
-                    canvasCtx.stroke();
-                }
-                if (!handTracked) {
-                    handTracked = true;
-                    updateStatus("Hand tracked.", true);
-                }
-                lastLinePoint = averagePoint;
-                lastPoints.shift();
-            }
-            lastPoints.push([x, y]);
-        }
-    }
-}
 class HandsCamera {
-    constructor(cameraNumber = 0, videoElement) {
-        this.cameraNumber = cameraNumber;
+    constructor(videoElement, cameraNumber = 0, drawColor = "white", lineSmoothingSteps = 5) {
+        this.handTracked = false;
         this.videoElement = videoElement;
+        this.cameraNumber = cameraNumber;
+        this.drawColor = drawColor;
+        this.lineSmoothingSteps = lineSmoothingSteps;
         this.initialize();
     }
     getCameraId() {
@@ -123,7 +72,7 @@ class HandsCamera {
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5,
         });
-        this.hands.onResults(onResults);
+        this.hands.onResults(this.onResults.bind(this));
         this.videoElement.autoplay = true;
         var cThis = this;
         navigator.mediaDevices
@@ -158,12 +107,109 @@ class HandsCamera {
             " and video element " +
             this.videoElement.id +
             ".");
-        updateStatus("Please place your hand in front of your camera and move it to draw.");
+        if (!this.handTracked) {
+            updateStatus("Please place your hand in front of your camera and move it to draw.");
+        }
         this.onFrame();
     }
     async onFrame() {
         await this.hands.send({ image: this.videoElement });
         window.requestAnimationFrame(this.onFrame.bind(this));
     }
+    onResults(results) {
+        if (results.multiHandLandmarks) {
+            for (const landmarks of results.multiHandLandmarks) {
+                var x = canvasElement.clientWidth -
+                    landmarks[8].x * canvasElement.clientWidth;
+                var y = landmarks[8].y * canvasElement.clientHeight;
+                if (lastPoints.length === this.lineSmoothingSteps) {
+                    var averagePoint = [0, 0];
+                    for (var i = 0; i < lastPoints.length; i++) {
+                        averagePoint[0] += lastPoints[i][0];
+                        averagePoint[1] += lastPoints[i][1];
+                    }
+                    averagePoint[0] /= lastPoints.length;
+                    averagePoint[1] /= lastPoints.length;
+                    if (lastLinePoint !== undefined) {
+                        canvasCtx.beginPath();
+                        canvasCtx.lineCap = "round";
+                        canvasCtx.moveTo(lastLinePoint[0], lastLinePoint[1]);
+                        canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
+                        canvasCtx.strokeStyle = this.drawColor;
+                        canvasCtx.stroke();
+                    }
+                    if (!this.handTracked) {
+                        this.handTracked = true;
+                        updateStatus("Hand tracked.", true);
+                    }
+                    if (this.multiHandsCamera !== undefined) {
+                        this.multiHandsCamera.setTrackingPoint(this, averagePoint);
+                    }
+                    lastLinePoint = averagePoint;
+                    lastPoints.shift();
+                }
+                lastPoints.push([x, y]);
+            }
+        }
+    }
+    setMultiHandsCamera(multiHandsCamera) {
+        this.multiHandsCamera = multiHandsCamera;
+    }
 }
-const cameraA = new HandsCamera(0, videoElementA);
+class MultiHandsCamera {
+    constructor(handsCameras) {
+        this.updateDistanceCountOffset = 2;
+        this.trackingPointUpdateCounts = [];
+        this.trackingPoints = [];
+        this.handsCameras = handsCameras;
+        this.initialize();
+    }
+    initialize() {
+        for (var i = 0; i < this.handsCameras.length; i++) {
+            this.handsCameras[i].setMultiHandsCamera(this);
+            this.trackingPoints.push([this.handsCameras[i], [0, 0]]);
+            this.trackingPointUpdateCounts.push(0);
+        }
+    }
+    updateDistanceToCamera() {
+        var distanceToCamera = [
+            this.trackingPoints[0][1][0],
+            this.trackingPoints[0][1][1],
+        ];
+        for (var i = 1; i < this.trackingPoints.length; i++) {
+            distanceToCamera[0] -= this.trackingPoints[i][1][0];
+            distanceToCamera[1] -= this.trackingPoints[i][1][1];
+        }
+        this.distanceToCamera = Math.abs((Math.abs(distanceToCamera[0]) + Math.abs(distanceToCamera[1])) * -1);
+        console.log(this.distanceToCamera);
+    }
+    setTrackingPoint(handsCamera, trackingPoint) {
+        var cameraIndex;
+        for (var i = 0; i < this.trackingPoints.length; i++) {
+            if (this.trackingPoints[i][0] === handsCamera) {
+                this.trackingPoints[i][1] = trackingPoint;
+                cameraIndex = i;
+            }
+        }
+        this.trackingPointUpdateCounts[cameraIndex]++;
+        var updateDistance = true;
+        for (var i = 0; i < this.trackingPoints.length; i++) {
+            if (this.trackingPointUpdateCounts[i] < this.updateDistanceCountOffset) {
+                updateDistance = false;
+                break;
+            }
+        }
+        if (updateDistance) {
+            for (var i = 0; i < this.trackingPoints.length; i++) {
+                this.trackingPointUpdateCounts[i] = 0;
+            }
+            this.updateDistanceToCamera();
+        }
+    }
+}
+const handsCameraA = new HandsCamera(videoElementA, 0, "white");
+const handsCameraB = new HandsCamera(videoElementB, 0, "green");
+const multiHandsCamera = new MultiHandsCamera([
+    handsCameraA,
+    handsCameraB,
+]);

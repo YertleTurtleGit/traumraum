@@ -10,7 +10,9 @@ const videoElementA = <HTMLVideoElement>(
 const videoElementB = <HTMLVideoElement>(
    document.getElementById("input_video_b")
 );
-const canvasElement = document.getElementById("output_canvas");
+const canvasElement = <HTMLCanvasElement>(
+   document.getElementById("output_canvas")
+);
 const canvasCtx = canvasElement.getContext("2d");
 
 function updateStatus(status: string, hidden: boolean = false): void {
@@ -26,81 +28,35 @@ function updateStatus(status: string, hidden: boolean = false): void {
 var lastPoints: [number, number][] = [];
 var lastLinePoint: [number, number];
 
-var handTracked: boolean = false;
-
-function onResults(results) {
-   if (results.multiHandLandmarks) {
-      for (const landmarks of results.multiHandLandmarks) {
-         /*drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-            color: "#00FF00",
-            lineWidth: 5,
-         });*/
-         /*drawLandmarks(canvasCtx, [landmarks[8]], {
-            color: "#FF0000",
-            lineWidth: 2,
-         });*/
-
-         /*canvasCtx.beginPath();
-         canvasCtx.arc(
-            canvasElement.clientWidth -
-               landmarks[8].x * canvasElement.clientWidth,
-            landmarks[8].y * canvasElement.clientHeight,
-            5,
-            0,
-            2 * Math.PI,
-            false
-         );
-         canvasCtx.fillStyle = "white";
-         canvasCtx.fill();*/
-
-         var x: number =
-            canvasElement.clientWidth -
-            landmarks[8].x * canvasElement.clientWidth;
-         var y: number = landmarks[8].y * canvasElement.clientHeight;
-         if (lastPoints.length === 5) {
-            var averagePoint: [number, number] = [0, 0];
-            for (var i = 0; i < lastPoints.length; i++) {
-               averagePoint[0] += lastPoints[i][0];
-               averagePoint[1] += lastPoints[i][1];
-            }
-            averagePoint[0] /= lastPoints.length;
-            averagePoint[1] /= lastPoints.length;
-
-            if (lastLinePoint !== undefined) {
-               canvasCtx.beginPath();
-               canvasCtx.lineCap = "round";
-               canvasCtx.moveTo(lastLinePoint[0], lastLinePoint[1]);
-               canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
-               canvasCtx.strokeStyle = "white";
-               canvasCtx.stroke();
-            }
-            if (!handTracked) {
-               handTracked = true;
-               updateStatus("Hand tracked.", true);
-            }
-            lastLinePoint = averagePoint;
-            lastPoints.shift();
-         }
-         lastPoints.push([x, y]);
-      }
-   }
-}
-
 class HandsCamera {
-   private videoElement: HTMLVideoElement;
    private cameraNumber: number;
+   private drawColor: string;
+   private lineSmoothingSteps: number;
+   private videoElement: HTMLVideoElement;
+
+   private multiHandsCamera: MultiHandsCamera;
+
    private cameraId: string;
    private cameraLabel: string;
 
    private hands;
 
-   constructor(cameraNumber: number = 0, videoElement: HTMLVideoElement) {
-      this.cameraNumber = cameraNumber;
+   private handTracked: boolean = false;
+
+   constructor(
+      videoElement: HTMLVideoElement,
+      cameraNumber: number = 0,
+      drawColor: string = "white",
+      lineSmoothingSteps: number = 5
+   ) {
       this.videoElement = videoElement;
+      this.cameraNumber = cameraNumber;
+      this.drawColor = drawColor;
+      this.lineSmoothingSteps = lineSmoothingSteps;
       this.initialize();
    }
 
-   getCameraId(): string {
+   private getCameraId(): string {
       if (this.cameraId === undefined) {
          var cameraDevices: MediaDeviceInfo[] = [];
          var cThis = this;
@@ -129,7 +85,7 @@ class HandsCamera {
       }
    }
 
-   getCameraName(): string {
+   private getCameraName(): string {
       this.getCameraId();
       if (this.cameraLabel === undefined || this.cameraLabel === "") {
          return "cam" + this.cameraNumber;
@@ -137,7 +93,7 @@ class HandsCamera {
       return this.cameraLabel;
    }
 
-   initialize(): void {
+   private initialize(): void {
       this.hands = new Hands({
          locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
@@ -148,7 +104,7 @@ class HandsCamera {
          minDetectionConfidence: 0.5,
          minTrackingConfidence: 0.5,
       });
-      this.hands.onResults(onResults);
+      this.hands.onResults(this.onResults.bind(this));
 
       this.videoElement.autoplay = true;
 
@@ -185,7 +141,7 @@ class HandsCamera {
       );
    }
 
-   async startHandObserving() {
+   private async startHandObserving() {
       await this.hands.send({ image: this.videoElement });
       updateStatus(
          "Loaded hand observer of camera " +
@@ -194,26 +150,135 @@ class HandsCamera {
             this.videoElement.id +
             "."
       );
-      updateStatus(
-         "Please place your hand in front of your camera and move it to draw."
-      );
+      if (!this.handTracked) {
+         updateStatus(
+            "Please place your hand in front of your camera and move it to draw."
+         );
+      }
       this.onFrame();
    }
 
-   async onFrame() {
+   private async onFrame() {
       await this.hands.send({ image: this.videoElement });
       window.requestAnimationFrame(this.onFrame.bind(this));
    }
+
+   private onResults(results) {
+      if (results.multiHandLandmarks) {
+         for (const landmarks of results.multiHandLandmarks) {
+            var x: number =
+               canvasElement.clientWidth -
+               landmarks[8].x * canvasElement.clientWidth;
+            var y: number = landmarks[8].y * canvasElement.clientHeight;
+
+            if (lastPoints.length === this.lineSmoothingSteps) {
+               var averagePoint: [number, number] = [0, 0];
+               for (var i = 0; i < lastPoints.length; i++) {
+                  averagePoint[0] += lastPoints[i][0];
+                  averagePoint[1] += lastPoints[i][1];
+               }
+               averagePoint[0] /= lastPoints.length;
+               averagePoint[1] /= lastPoints.length;
+
+               if (lastLinePoint !== undefined) {
+                  canvasCtx.beginPath();
+                  canvasCtx.lineCap = "round";
+                  canvasCtx.moveTo(lastLinePoint[0], lastLinePoint[1]);
+                  canvasCtx.lineTo(averagePoint[0], averagePoint[1]);
+                  canvasCtx.strokeStyle = this.drawColor;
+                  canvasCtx.stroke();
+               }
+               if (!this.handTracked) {
+                  this.handTracked = true;
+                  updateStatus("Hand tracked.", true);
+               }
+               if (this.multiHandsCamera !== undefined) {
+                  this.multiHandsCamera.setTrackingPoint(this, averagePoint);
+               }
+               lastLinePoint = averagePoint;
+               lastPoints.shift();
+            }
+            lastPoints.push([x, y]);
+         }
+      }
+   }
+
+   public setMultiHandsCamera(multiHandsCamera: MultiHandsCamera): void {
+      this.multiHandsCamera = multiHandsCamera;
+   }
 }
 
-const cameraA: HandsCamera = new HandsCamera(0, videoElementA);
-//const cameraB: HandsCamera = new HandsCamera(1, videoElementB);
+class MultiHandsCamera {
+   private updateDistanceCountOffset: number = 2;
+   private trackingPointUpdateCounts: number[] = [];
 
-/*const cameraA = new Camera(videoElementA, {
-   onFrame: async () => {
-      await hands.send({ image: videoElementA });
-   },
-   width: WIDTH,
-   height: HEIGHT,
-});
-cameraA.start();*/
+   private handsCameras: HandsCamera[];
+   private trackingPoints: [HandsCamera, [number, number]][] = [];
+   private distanceToCamera: number;
+
+   constructor(handsCameras: HandsCamera[]) {
+      this.handsCameras = handsCameras;
+      this.initialize();
+   }
+
+   private initialize() {
+      for (var i = 0; i < this.handsCameras.length; i++) {
+         this.handsCameras[i].setMultiHandsCamera(this);
+         this.trackingPoints.push([this.handsCameras[i], [0, 0]]);
+         this.trackingPointUpdateCounts.push(0);
+      }
+   }
+
+   private updateDistanceToCamera(): void {
+      var distanceToCamera: [number, number] = [
+         this.trackingPoints[0][1][0],
+         this.trackingPoints[0][1][1],
+      ];
+      for (var i = 1; i < this.trackingPoints.length; i++) {
+         distanceToCamera[0] -= this.trackingPoints[i][1][0];
+         distanceToCamera[1] -= this.trackingPoints[i][1][1];
+      }
+      this.distanceToCamera = Math.abs(
+         (Math.abs(distanceToCamera[0]) + Math.abs(distanceToCamera[1])) * -1
+      );
+      console.log(this.distanceToCamera);
+   }
+
+   public setTrackingPoint(
+      handsCamera: HandsCamera,
+      trackingPoint: [number, number]
+   ): void {
+      var cameraIndex: number;
+      for (var i = 0; i < this.trackingPoints.length; i++) {
+         if (this.trackingPoints[i][0] === handsCamera) {
+            this.trackingPoints[i][1] = trackingPoint;
+            cameraIndex = i;
+         }
+      }
+      this.trackingPointUpdateCounts[cameraIndex]++;
+
+      var updateDistance: boolean = true;
+      for (var i = 0; i < this.trackingPoints.length; i++) {
+         if (
+            this.trackingPointUpdateCounts[i] < this.updateDistanceCountOffset
+         ) {
+            updateDistance = false;
+            break;
+         }
+      }
+      if (updateDistance) {
+         for (var i = 0; i < this.trackingPoints.length; i++) {
+            this.trackingPointUpdateCounts[i] = 0;
+         }
+         this.updateDistanceToCamera();
+      }
+   }
+}
+
+const handsCameraA: HandsCamera = new HandsCamera(videoElementA, 0, "white");
+const handsCameraB: HandsCamera = new HandsCamera(videoElementB, 0, "green");
+
+const multiHandsCamera: MultiHandsCamera = new MultiHandsCamera([
+   handsCameraA,
+   handsCameraB,
+]);
