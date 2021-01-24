@@ -107,7 +107,6 @@ class HandsCamera {
             updateStatus("Please allow access for camera " + this.getCameraName() + ".");
         }
         else {
-            console.log("waiting...");
             setTimeout(this.initialize.bind(this, waitFor), 500);
         }
     }
@@ -173,12 +172,8 @@ class HandsCamera {
 }
 class MultiHandsCamera {
     constructor(handsCameras) {
-        this.isWaitingForResult = [];
         this.trackingPoints = [];
-        this.currentTFPS = 0;
-        this.currentFPS = 0;
-        this.lastTrackingFrameUpdate = performance.now();
-        this.lastFrameUpdate = performance.now();
+        this.processedFrames = 0;
         this.calledBackFrames = [];
         this.handsCameras = handsCameras;
         this.initialize();
@@ -187,7 +182,6 @@ class MultiHandsCamera {
         for (var i = 0; i < this.handsCameras.length; i++) {
             this.handsCameras[i].setMultiHandsCamera(this);
             this.trackingPoints.push([this.handsCameras[i], [0, 0]]);
-            this.isWaitingForResult.push(true);
             this.calledBackFrames.push(false);
         }
     }
@@ -199,30 +193,13 @@ class MultiHandsCamera {
         }
         this.distanceToCamera = distanceToCamera[0] + distanceToCamera[1];
     }
-    isWaitingForResultOf(handsCamera) {
-        for (var i = 0; i < this.handsCameras.length; i++) {
-            if (this.handsCameras[i] === handsCamera) {
-                return this.isWaitingForResult[i];
-            }
-        }
-    }
-    getCurrentTFPS() {
-        return this.currentTFPS;
-    }
-    getCurrentFPS() {
-        return this.currentFPS;
+    getProcessedFrames() {
+        const tmp = this.processedFrames;
+        this.processedFrames = 0;
+        return tmp;
     }
     getCurrentDistanceToCamera() {
         return this.distanceToCamera;
-    }
-    updateTFPS() {
-        this.currentTFPS =
-            1 / ((performance.now() - this.lastTrackingFrameUpdate) / 1000);
-        this.lastTrackingFrameUpdate = performance.now();
-    }
-    updateFPS() {
-        this.currentFPS = 1 / ((performance.now() - this.lastFrameUpdate) / 1000);
-        this.lastFrameUpdate = performance.now();
     }
     allHandCamerasInitialized() {
         for (var i = 0; i < this.handsCameras.length; i++) {
@@ -237,7 +214,6 @@ class MultiHandsCamera {
             this.callFrames();
         }
         else {
-            console.log("waiting2...");
             setTimeout(this.startTracking.bind(this), 500);
         }
     }
@@ -261,32 +237,16 @@ class MultiHandsCamera {
                 this.calledBackFrames[i] = false;
             }
             this.callFrames();
-            this.updateFPS();
+            this.processedFrames++;
         }
     }
     setTrackingPoint(handsCamera, trackingPoint) {
-        var cameraIndex;
         for (var i = 0; i < this.trackingPoints.length; i++) {
             if (this.trackingPoints[i][0] === handsCamera) {
                 this.trackingPoints[i][1] = trackingPoint;
-                cameraIndex = i;
             }
         }
-        this.isWaitingForResult[cameraIndex] = false;
-        var updateDistance = true;
-        for (var i = 0; i < this.isWaitingForResult.length; i++) {
-            if (this.isWaitingForResult[i]) {
-                updateDistance = false;
-                break;
-            }
-        }
-        if (updateDistance) {
-            for (var i = 0; i < this.isWaitingForResult.length; i++) {
-                this.isWaitingForResult[i] = true;
-            }
-            this.updateDistanceToCamera();
-            this.updateTFPS();
-        }
+        this.updateDistanceToCamera();
     }
 }
 const handsCameraA = new HandsCamera(videoElementA, 0, "red");
@@ -299,10 +259,8 @@ multiHandsCamera.startTracking();
 function updateDebugInfo() {
     DEBUG_INFO_ELEMENT.innerHTML =
         "FPS: " +
-            Math.round(multiHandsCamera.getCurrentFPS()) +
-            "</br>TFPS: " +
-            Math.round(multiHandsCamera.getCurrentTFPS()) +
+            Math.round(multiHandsCamera.getProcessedFrames()) +
             "</br>d: " +
             Math.round(multiHandsCamera.getCurrentDistanceToCamera());
 }
-setInterval(updateDebugInfo, 500);
+setInterval(updateDebugInfo, 1000);
