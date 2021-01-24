@@ -3,6 +3,7 @@
 const WIDTH = 1280;
 const HEIGHT = 720;
 const STATUS_ELEMENT: HTMLElement = document.getElementById("status");
+const DEBUG_INFO_ELEMENT: HTMLElement = document.getElementById("debug_info");
 
 const videoElementA = <HTMLVideoElement>(
    document.getElementById("input_video_a")
@@ -47,7 +48,7 @@ class HandsCamera {
       videoElement: HTMLVideoElement,
       cameraNumber: number = 0,
       drawColor: string = "white",
-      lineSmoothingSteps: number = 5
+      lineSmoothingSteps: number = 3
    ) {
       this.videoElement = videoElement;
       this.cameraNumber = cameraNumber;
@@ -220,6 +221,9 @@ class MultiHandsCamera {
    private trackingPoints: [HandsCamera, [number, number]][] = [];
    private distanceToCamera: number;
 
+   private currentFPS: number = 0;
+   private lastFrameUpdate: number = performance.now();
+
    constructor(handsCameras: HandsCamera[]) {
       this.handsCameras = handsCameras;
       this.initialize();
@@ -256,6 +260,15 @@ class MultiHandsCamera {
       }
    }
 
+   public getCurrentFPS(): number {
+      return this.currentFPS;
+   }
+
+   private updateFPS(): void {
+      this.currentFPS = 1 / ((performance.now() - this.lastFrameUpdate) / 1000);
+      this.lastFrameUpdate = performance.now();
+   }
+
    // TODO: Implement timing
    private firstTrackingPointUpdateInFrame: number;
    public setTrackingPoint(
@@ -272,8 +285,6 @@ class MultiHandsCamera {
       }
       this.isWaitingForResult[cameraIndex] = false;
 
-      console.log(this.isWaitingForResult);
-
       var updateDistance: boolean = true;
       for (var i = 0; i < this.isWaitingForResult.length; i++) {
          if (this.isWaitingForResult[i]) {
@@ -286,6 +297,7 @@ class MultiHandsCamera {
             this.isWaitingForResult[i] = true;
          }
          this.updateDistanceToCamera();
+         this.updateFPS();
       }
    }
 }
@@ -297,3 +309,9 @@ const multiHandsCamera: MultiHandsCamera = new MultiHandsCamera([
    handsCameraA,
    handsCameraB,
 ]);
+
+function updateDebugInfo(): void {
+   DEBUG_INFO_ELEMENT.innerHTML =
+      "FPS: " + Math.round(multiHandsCamera.getCurrentFPS());
+}
+setInterval(updateDebugInfo, 500);

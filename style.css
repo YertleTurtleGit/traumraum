@@ -24,3 +24,14 @@ video {
    color: white;
    z-index: 9999;
 }
+
+#debug_info {
+   position: fixed;
+   top: 5%;
+   left: 5%;
+   transform: translate(-50%, -50%);
+   font-size: large;
+   font-family: sans-serif;
+   color: white;
+   z-index: 9999;
+}

@@ -2,6 +2,7 @@
 const WIDTH = 1280;
 const HEIGHT = 720;
 const STATUS_ELEMENT = document.getElementById("status");
+const DEBUG_INFO_ELEMENT = document.getElementById("debug_info");
 const videoElementA = (document.getElementById("input_video_a"));
 const videoElementB = (document.getElementById("input_video_b"));
 const canvasElement = (document.getElementById("output_canvas"));
@@ -19,7 +20,7 @@ function updateStatus(status, hidden = false) {
 var lastPoints = [];
 var lastLinePoint;
 class HandsCamera {
-    constructor(videoElement, cameraNumber = 0, drawColor = "white", lineSmoothingSteps = 5) {
+    constructor(videoElement, cameraNumber = 0, drawColor = "white", lineSmoothingSteps = 3) {
         this.handTracked = false;
         this.videoElement = videoElement;
         this.cameraNumber = cameraNumber;
@@ -163,6 +164,8 @@ class MultiHandsCamera {
     constructor(handsCameras) {
         this.isWaitingForResult = [];
         this.trackingPoints = [];
+        this.currentFPS = 0;
+        this.lastFrameUpdate = performance.now();
         this.handsCameras = handsCameras;
         this.initialize();
     }
@@ -192,6 +195,13 @@ class MultiHandsCamera {
             }
         }
     }
+    getCurrentFPS() {
+        return this.currentFPS;
+    }
+    updateFPS() {
+        this.currentFPS = 1 / ((performance.now() - this.lastFrameUpdate) / 1000);
+        this.lastFrameUpdate = performance.now();
+    }
     setTrackingPoint(handsCamera, trackingPoint) {
         var cameraIndex;
         for (var i = 0; i < this.trackingPoints.length; i++) {
@@ -201,7 +211,6 @@ class MultiHandsCamera {
             }
         }
         this.isWaitingForResult[cameraIndex] = false;
-        console.log(this.isWaitingForResult);
         var updateDistance = true;
         for (var i = 0; i < this.isWaitingForResult.length; i++) {
             if (this.isWaitingForResult[i]) {
@@ -214,6 +223,7 @@ class MultiHandsCamera {
                 this.isWaitingForResult[i] = true;
             }
             this.updateDistanceToCamera();
+            this.updateFPS();
         }
     }
 }
@@ -223,3 +233,8 @@ const multiHandsCamera = new MultiHandsCamera([
     handsCameraA,
     handsCameraB,
 ]);
+function updateDebugInfo() {
+    DEBUG_INFO_ELEMENT.innerHTML =
+        "FPS: " + Math.round(multiHandsCamera.getCurrentFPS());
+}
+setInterval(updateDebugInfo, 500);
