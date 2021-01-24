@@ -44,17 +44,20 @@ class HandsCamera {
 
    private handTracked: boolean = false;
 
+   private initialized: boolean = false;
+
    constructor(
       videoElement: HTMLVideoElement,
       cameraNumber: number = 0,
       drawColor: string = "white",
+      waitFor: HandsCamera = undefined,
       lineSmoothingSteps: number = 3
    ) {
       this.videoElement = videoElement;
       this.cameraNumber = cameraNumber;
       this.drawColor = drawColor;
       this.lineSmoothingSteps = lineSmoothingSteps;
-      this.initialize();
+      this.initialize(waitFor);
    }
 
    private getCameraId(): string {
@@ -94,56 +97,66 @@ class HandsCamera {
       return this.cameraLabel;
    }
 
-   private initialize(): void {
-      this.hands = new Hands({
-         locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-         },
-      });
-      this.hands.setOptions({
-         maxNumHands: 1,
-         minDetectionConfidence: 0.5,
-         minTrackingConfidence: 0.5,
-      });
-      this.hands.onResults(this.onResults.bind(this));
+   public isInitialized(): boolean {
+      return this.initialized;
+   }
 
-      this.videoElement.autoplay = true;
-
-      var cThis = this;
-
-      navigator.mediaDevices
-         .getUserMedia({
-            video: {
-               width: WIDTH,
-               height: HEIGHT,
-               deviceId: { exact: cThis.getCameraId() },
+   private initialize(waitFor: HandsCamera): void {
+      if (waitFor === undefined || waitFor.isInitialized()) {
+         this.hands = new Hands({
+            locateFile: (file) => {
+               return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
             },
-         })
-         .then(function (stream) {
-            updateStatus(
-               "Loading hand observer of camera " +
-                  cThis.getCameraName() +
-                  " and video element " +
-                  cThis.videoElement.id +
-                  "..."
-            );
-            cThis.videoElement.srcObject = stream;
-            cThis.startHandObserving();
-         })
-         .catch(function (error) {
-            console.error("Failed to acquire camera feed: " + error);
-            alert("Failed to acquire camera feed: " + error);
-            throw error;
          });
+         this.hands.setOptions({
+            maxNumHands: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+         });
+         this.hands.onResults(this.onResults.bind(this));
 
-      this.getCameraId();
-      updateStatus(
-         "Please allow access for camera " + this.getCameraName() + "."
-      );
+         this.videoElement.autoplay = true;
+
+         var cThis = this;
+
+         navigator.mediaDevices
+            .getUserMedia({
+               video: {
+                  width: WIDTH,
+                  height: HEIGHT,
+                  deviceId: { exact: cThis.getCameraId() },
+               },
+            })
+            .then(function (stream) {
+               updateStatus(
+                  "Loading hand observer of camera " +
+                     cThis.getCameraName() +
+                     " and video element " +
+                     cThis.videoElement.id +
+                     "..."
+               );
+               cThis.videoElement.srcObject = stream;
+               cThis.startHandObserving();
+            })
+            .catch(function (error) {
+               console.error("Failed to acquire camera feed: " + error);
+               alert("Failed to acquire camera feed: " + error);
+               throw error;
+            });
+
+         this.getCameraId();
+         updateStatus(
+            "Please allow access for camera " + this.getCameraName() + "."
+         );
+      } else {
+         console.log("waiting...");
+         setTimeout(this.initialize.bind(this, waitFor), 500);
+      }
    }
 
    private async startHandObserving() {
       await this.hands.send({ image: this.videoElement });
+      this.initialized = true;
       updateStatus(
          "Loaded hand observer of camera " +
             this.getCameraName() +
@@ -249,7 +262,6 @@ class MultiHandsCamera {
       this.distanceToCamera = Math.abs(
          (Math.abs(distanceToCamera[0]) + Math.abs(distanceToCamera[1])) * -1
       );
-      console.log(this.distanceToCamera);
    }
 
    public isWaitingForResultOf(handsCamera: HandsCamera): boolean {
@@ -262,6 +274,10 @@ class MultiHandsCamera {
 
    public getCurrentFPS(): number {
       return this.currentFPS;
+   }
+
+   public getCurrentDistanceToCamera(): number {
+      return this.distanceToCamera;
    }
 
    private updateFPS(): void {
@@ -303,7 +319,12 @@ class MultiHandsCamera {
 }
 
 const handsCameraA: HandsCamera = new HandsCamera(videoElementA, 0, "red");
-const handsCameraB: HandsCamera = new HandsCamera(videoElementB, 0, "green");
+const handsCameraB: HandsCamera = new HandsCamera(
+   videoElementB,
+   0,
+   "green",
+   handsCameraA
+);
 
 const multiHandsCamera: MultiHandsCamera = new MultiHandsCamera([
    handsCameraA,
@@ -312,6 +333,9 @@ const multiHandsCamera: MultiHandsCamera = new MultiHandsCamera([
 
 function updateDebugInfo(): void {
    DEBUG_INFO_ELEMENT.innerHTML =
-      "FPS: " + Math.round(multiHandsCamera.getCurrentFPS());
+      "FPS: " +
+      Math.round(multiHandsCamera.getCurrentFPS()) +
+      "</br>d: " +
+      Math.round(multiHandsCamera.getCurrentDistanceToCamera());
 }
 setInterval(updateDebugInfo, 500);

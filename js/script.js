@@ -20,13 +20,14 @@ function updateStatus(status, hidden = false) {
 var lastPoints = [];
 var lastLinePoint;
 class HandsCamera {
-    constructor(videoElement, cameraNumber = 0, drawColor = "white", lineSmoothingSteps = 3) {
+    constructor(videoElement, cameraNumber = 0, drawColor = "white", waitFor = undefined, lineSmoothingSteps = 3) {
         this.handTracked = false;
+        this.initialized = false;
         this.videoElement = videoElement;
         this.cameraNumber = cameraNumber;
         this.drawColor = drawColor;
         this.lineSmoothingSteps = lineSmoothingSteps;
-        this.initialize();
+        this.initialize(waitFor);
     }
     getCameraId() {
         if (this.cameraId === undefined) {
@@ -62,47 +63,57 @@ class HandsCamera {
         }
         return this.cameraLabel;
     }
-    initialize() {
-        this.hands = new Hands({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-            },
-        });
-        this.hands.setOptions({
-            maxNumHands: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-        });
-        this.hands.onResults(this.onResults.bind(this));
-        this.videoElement.autoplay = true;
-        var cThis = this;
-        navigator.mediaDevices
-            .getUserMedia({
-            video: {
-                width: WIDTH,
-                height: HEIGHT,
-                deviceId: { exact: cThis.getCameraId() },
-            },
-        })
-            .then(function (stream) {
-            updateStatus("Loading hand observer of camera " +
-                cThis.getCameraName() +
-                " and video element " +
-                cThis.videoElement.id +
-                "...");
-            cThis.videoElement.srcObject = stream;
-            cThis.startHandObserving();
-        })
-            .catch(function (error) {
-            console.error("Failed to acquire camera feed: " + error);
-            alert("Failed to acquire camera feed: " + error);
-            throw error;
-        });
-        this.getCameraId();
-        updateStatus("Please allow access for camera " + this.getCameraName() + ".");
+    isInitialized() {
+        return this.initialized;
+    }
+    initialize(waitFor) {
+        if (waitFor === undefined || waitFor.isInitialized()) {
+            this.hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                },
+            });
+            this.hands.setOptions({
+                maxNumHands: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5,
+            });
+            this.hands.onResults(this.onResults.bind(this));
+            this.videoElement.autoplay = true;
+            var cThis = this;
+            navigator.mediaDevices
+                .getUserMedia({
+                video: {
+                    width: WIDTH,
+                    height: HEIGHT,
+                    deviceId: { exact: cThis.getCameraId() },
+                },
+            })
+                .then(function (stream) {
+                updateStatus("Loading hand observer of camera " +
+                    cThis.getCameraName() +
+                    " and video element " +
+                    cThis.videoElement.id +
+                    "...");
+                cThis.videoElement.srcObject = stream;
+                cThis.startHandObserving();
+            })
+                .catch(function (error) {
+                console.error("Failed to acquire camera feed: " + error);
+                alert("Failed to acquire camera feed: " + error);
+                throw error;
+            });
+            this.getCameraId();
+            updateStatus("Please allow access for camera " + this.getCameraName() + ".");
+        }
+        else {
+            console.log("waiting...");
+            setTimeout(this.initialize.bind(this, waitFor), 500);
+        }
     }
     async startHandObserving() {
         await this.hands.send({ image: this.videoElement });
+        this.initialized = true;
         updateStatus("Loaded hand observer of camera " +
             this.getCameraName() +
             " and video element " +
@@ -186,7 +197,6 @@ class MultiHandsCamera {
             distanceToCamera[1] -= this.trackingPoints[i][1][1];
         }
         this.distanceToCamera = Math.abs((Math.abs(distanceToCamera[0]) + Math.abs(distanceToCamera[1])) * -1);
-        console.log(this.distanceToCamera);
     }
     isWaitingForResultOf(handsCamera) {
         for (var i = 0; i < this.handsCameras.length; i++) {
@@ -197,6 +207,9 @@ class MultiHandsCamera {
     }
     getCurrentFPS() {
         return this.currentFPS;
+    }
+    getCurrentDistanceToCamera() {
+        return this.distanceToCamera;
     }
     updateFPS() {
         this.currentFPS = 1 / ((performance.now() - this.lastFrameUpdate) / 1000);
@@ -228,13 +241,16 @@ class MultiHandsCamera {
     }
 }
 const handsCameraA = new HandsCamera(videoElementA, 0, "red");
-const handsCameraB = new HandsCamera(videoElementB, 0, "green");
+const handsCameraB = new HandsCamera(videoElementB, 0, "green", handsCameraA);
 const multiHandsCamera = new MultiHandsCamera([
     handsCameraA,
     handsCameraB,
 ]);
 function updateDebugInfo() {
     DEBUG_INFO_ELEMENT.innerHTML =
-        "FPS: " + Math.round(multiHandsCamera.getCurrentFPS());
+        "FPS: " +
+            Math.round(multiHandsCamera.getCurrentFPS()) +
+            "</br>d: " +
+            Math.round(multiHandsCamera.getCurrentDistanceToCamera());
 }
 setInterval(updateDebugInfo, 500);
