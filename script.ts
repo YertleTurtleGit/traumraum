@@ -57,7 +57,7 @@ function onResults(results) {
             canvasElement.clientWidth -
             landmarks[8].x * canvasElement.clientWidth;
          var y: number = landmarks[8].y * canvasElement.clientHeight;
-         if (lastPoints.length === 5) {
+         if (lastPoints.length === 3) {
             var averagePoint: [number, number] = [0, 0];
             for (var i = 0; i < lastPoints.length; i++) {
                averagePoint[0] += lastPoints[i][0];
